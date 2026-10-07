@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python + SQL · Связанные таблицы · 12 задач</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; }
+        body { background: #0f172a; margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+        .app { max-width: 1350px; width: 100%; background: #ffffff; border-radius: 28px; box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4); overflow: hidden; display: flex; flex-direction: column; }
+        header { background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); color: white; padding: 22px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        header h1 { margin: 0; font-weight: 500; font-size: 1.7rem; letter-spacing: -0.5px; }
+        header h1 span { color: #fcd34d; font-weight: 700; }
+        .header-info { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .progress-badge { background: rgba(255, 255, 255, 0.15); padding: 8px 18px; border-radius: 40px; font-size: 0.92rem; color: #fef3c7; border: 1px solid rgba(255, 255, 255, 0.2); }
+        .score-badge { background: #10b981; padding: 8px 16px; border-radius: 40px; font-size: 0.88rem; color: white; font-weight: 600; }
+        .py-status { padding: 8px 16px; border-radius: 40px; font-size: 0.85rem; background: #f59e0b; color: #1e293b; font-weight: 600; }
+        .py-status.ready { background: #10b981; color: white; }
+        .main-panel { display: flex; flex-wrap: wrap; min-height: 650px; }
+        .sidebar { width: 320px; background: #f8fafc; border-right: 1px solid #e2e8f0; padding: 20px 12px; display: flex; flex-direction: column; gap: 16px; }
+        .sidebar-title { font-weight: 700; color: #334155; padding-left: 8px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .task-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-height: 550px; padding-right: 4px; }
+        .task-item { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 16px; font-size: 0.9rem; font-weight: 500; color: #1e293b; cursor: pointer; transition: all 0.15s; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .task-item:hover { background: #fef3c7; border-color: #fbbf24; transform: translateX(2px); }
+        .task-item.active { background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); border-color: transparent; color: white; box-shadow: 0 4px 12px rgba(154, 52, 18, 0.3); }
+        .task-item.solved { border-left: 5px solid #10b981; }
+        .task-item.solved.active { border-left: 5px solid #34d399; }
+        .task-status { font-size: 1rem; opacity: 0.85; flex-shrink: 0; }
+        .task-status.solved { color: #34d399; }
+        .task-item.active .task-status.solved { color: #6ee7b7; }
+        .content-area { flex: 1; padding: 30px 35px; display: flex; flex-direction: column; gap: 20px; min-width: 550px; }
+        .task-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .task-header h2 { margin: 0; font-size: 1.55rem; color: #0f172a; font-weight: 600; }
+        .task-number { background: #ffedd5; padding: 6px 16px; border-radius: 30px; font-size: 0.88rem; color: #9a3412; font-weight: 700; }
+        .theory-box { background: #fff7ed; border-left: 6px solid #f97316; padding: 16px 22px; border-radius: 14px; color: #7c2d12; font-size: 0.96rem; line-height: 1.55; }
+        .theory-box strong { color: #7c2d12; }
+        .schema-box { background: #f1f5f9; border-radius: 12px; padding: 12px 18px; font-size: 0.85rem; color: #334155; line-height: 1.6; }
+        .schema-box b { color: #7c2d12; }
+        .schema-box code { background: #e2e8f0; padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
+        .editor-section { display: flex; flex-direction: column; gap: 12px; }
+        .label-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .label-row label { font-weight: 600; color: #334155; font-size: 0.95rem; }
+        .btn-connect { background: #1e293b; color: white; border: none; padding: 9px 22px; border-radius: 30px; font-weight: 500; font-size: 0.88rem; cursor: pointer; transition: background 0.15s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-connect:hover:not(:disabled) { background: #334155; }
+        .btn-connect.connected { background: #059669; cursor: default; }
+        .btn-connect:disabled { background: #94a3b8; cursor: wait; }
+
+        /* ---------- РЕДАКТОР С НУМЕРАЦИЕЙ СТРОК ---------- */
+        .code-editor-wrap {
+            display: flex;
+            border: 1px solid #cbd5e1;
+            border-radius: 18px;
+            overflow: hidden;
+            background: #0f172a;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            position: relative;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.92rem;
+            line-height: 1.55;
+        }
+        .code-editor-wrap::before {
+            content: '🐍 Python';
+            position: absolute;
+            top: 10px;
+            right: 16px;
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            z-index: 2;
+        }
+        .line-numbers {
+            background: #1e293b;
+            color: #64748b;
+            padding: 36px 10px 18px 14px;
+            text-align: right;
+            user-select: none;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            min-width: 48px;
+            white-space: pre;
+            overflow: hidden;
+        }
+        .code-area {
+            flex: 1;
+            position: relative;
+        }
+        .code-area textarea {
+            width: 100%;
+            min-height: 220px;
+            height: 100%;
+            padding: 36px 20px 18px 20px;
+            font-family: inherit;
+            font-size: inherit;
+            line-height: inherit;
+            border: none;
+            outline: none;
+            resize: vertical;
+            background: #0f172a;
+            color: #e2e8f0;
+            tab-size: 4;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+        }
+        .code-area textarea:disabled {
+            background: #1e293b;
+            color: #64748b;
+        }
+
+        .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .btn-run { background: linear-gradient(135deg, #ea580c 0%, #f97316 100%); color: white; border: none; padding: 12px 32px; border-radius: 40px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(249, 115, 22, 0.35); }
+        .btn-run:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(249, 115, 22, 0.45); }
+        .btn-run:disabled { background: #cbd5e1; box-shadow: none; cursor: not-allowed; color: #64748b; }
+        .btn-clear { background: transparent; border: 1px solid #cbd5e1; color: #475569; padding: 11px 26px; border-radius: 40px; font-weight: 500; cursor: pointer; transition: 0.1s; }
+        .btn-clear:hover { background: #f1f5f9; }
+        .result-box { background: #f8fafc; border-radius: 18px; padding: 18px 22px; min-height: 110px; border: 1px solid #e2e8f0; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; white-space: pre-wrap; word-break: break-word; color: #1e293b; overflow-x: auto; max-height: 320px; overflow-y: auto; }
+        .result-box.error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+        .result-box.success { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+        .result-box.loading { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .footer-note { margin-top: 6px; color: #64748b; font-size: 0.83rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+        .hint { font-size: 0.83rem; color: #64748b; margin-top: -6px; }
+        .format-hint { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 10px 16px; border-radius: 10px; font-size: 0.85rem; color: #78350f; margin-top: 4px; }
+        .format-hint code { background: #fff; padding: 1px 6px; border-radius: 4px; color: #92400e; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body>
+<div class="app">
+    <header>
+        <h1>Python + SQL · <span>Связанные таблицы</span></h1>
+        <div class="header-info">
+            <div class="progress-badge" id="progressDisplay">Задача 1 из 12</div>
+            <div class="score-badge" id="scoreDisplay">Решено: 0/12</div>
+            <div class="py-status" id="pyStatus">Загрузка Python...</div>
+        </div>
+    </header>
+
+    <div class="main-panel">
+        <div class="sidebar">
+            <div class="sidebar-title">📋 Список задач</div>
+            <div class="task-list" id="taskListContainer"></div>
+        </div>
+
+        <div class="content-area">
+            <div class="task-header">
+                <h2 id="taskTitle">Задача 1</h2>
+                <div class="task-number" id="taskNumberLabel">№1</div>
+            </div>
+
+            <div class="schema-box" id="schemaBox">
+                🗄️ <b>База:</b> <code>db.sqlite</code><br>
+                📚 <b>Таблицы:</b><br>
+                • <code>classes (id, name, teacher_id)</code> — классы<br>
+                • <code>teachers (id, name, subject)</code> — учителя<br>
+                • <code>students (id, name, class_id, age)</code> — ученики<br>
+                • <code>grades (id, student_id, subject, score, date)</code> — оценки
+            </div>
+
+            <div class="theory-box" id="theoryText">
+                <strong>🔍 Теория:</strong> ...
+            </div>
+
+            <div class="editor-section">
+                <div class="label-row">
+                    <label>🔌 Подключение к базе данных (файл db.sqlite)</label>
+                    <button class="btn-connect" id="connectBtn" disabled>Подключиться к БД</button>
+                </div>
+                <div class="code-editor-wrap">
+                    <div class="line-numbers" id="lineNumbers">1</div>
+                    <div class="code-area">
+                        <textarea id="codeInput" placeholder="# Сначала нажмите 'Подключиться к БД'..." disabled spellcheck="false"></textarea>
+                    </div>
+                </div>
+                <div class="format-hint">
+                    📌 <b>Формат вывода:</b> каждая запись — на отдельной строке, значения разделяйте пробелом или <code>|</code>.<br>
+                    Пример: <code>print(row[0], '|', row[1])</code>
+                </div>
+                <div class="hint">💡 <b>Ctrl+Enter</b> — запуск. <b>Tab</b> — отступ 4 пробела, <b>Shift+Tab</b> — убрать отступ.</div>
+            </div>
+
+            <div class="actions">
+                <button class="btn-run" id="runBtn" disabled>▶ Запустить и проверить</button>
+                <button class="btn-clear" id="clearBtn">Очистить</button>
+            </div>
+
+            <div class="result-box" id="resultOutput">
+                -- Результат выполнения Python-кода появится здесь
+            </div>
+            <div class="footer-note">✅ Пишите настоящий Python-код с модулем sqlite3</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- 12 ЗАДАЧ ----------
+        // expectedRows скорректированы под реальные данные БД:
+        // задача 11 → 6 отличников (строго > 4.5)
+        // задача 12 → 2 ученика без оценок (id 14 и 15)
+        const TASKS = [
+            {
+                title: "Все классы",
+                theory: "Начнём с одной таблицы. Команда <b>SELECT *</b> выбирает <i>все</i> колонки из таблицы, указанной после слова <b>FROM</b>. Выполните выборку из таблицы <b>classes</b>. Каждый класс выведите на отдельной строке через <code>print()</code> — поля разделяйте пробелом или <code>|</code>.",
+                expectedRows: 6, expectedCols: 3
+            },
+            {
+                title: "Все учителя",
+                theory: "Команда <b>SELECT *</b> из таблицы <b>teachers</b> вернёт все колонки. Выведите каждого учителя через <code>print()</code> на отдельной строке.",
+                expectedRows: 5, expectedCols: 3
+            },
+            {
+                title: "Все ученики",
+                theory: "Выберите все колонки из таблицы <b>students</b>. Учеников 15. Печатайте каждую строку отдельным вызовом <code>print()</code>.",
+                expectedRows: 15, expectedCols: 4
+            },
+            {
+                title: "Имена и возраст учеников",
+                theory: "Команда <b>SELECT</b> позволяет перечислить только нужные колонки через запятую. Выберите <b>name</b> и <b>age</b> из таблицы <b>students</b>. Остальные колонки в выводе не нужны.",
+                expectedRows: 15, expectedCols: 2
+            },
+            {
+                title: "Ученики 7 класса",
+                theory: "Ключевое слово <b>WHERE</b> задаёт условие фильтрации. Чтобы найти учеников 7А, придётся связать таблицы <b>students</b> и <b>classes</b> через <b>JOIN ... ON</b> (условие: <b>students.class_id</b> = <b>classes.id</b>) и добавить фильтр <b>WHERE classes.name</b> = <code>'7А'</code>. Выведите имя и возраст ученика.",
+                expectedRows: 4, expectedCols: 2
+            },
+            {
+                title: "Учителя-математики",
+                theory: "Используйте <b>WHERE</b> для сравнения текстовой колонки <b>subject</b> со строкой <code>'Математика'</code>. Строки в SQL пишутся в одинарных кавычках. Выведите имя и предмет.",
+                expectedRows: 1, expectedCols: 2
+            },
+            {
+                title: "Класс ученика",
+                theory: "Чтобы связать данные двух таблиц, используйте <b>JOIN ... ON</b>. Условие: колонка <b>class_id</b> в таблице <b>students</b> совпадает с колонкой <b>id</b> в таблице <b>classes</b>. Выведите имя ученика и название класса, обращаясь к колонкам через имя таблицы: <code>students.name</code>, <code>classes.name</code>.",
+                expectedRows: 15, expectedCols: 2
+            },
+            {
+                title: "Класс и его учитель",
+                theory: "Свяжите таблицы <b>classes</b> и <b>teachers</b> через <b>JOIN ... ON</b>: колонка <b>teacher_id</b> в <b>classes</b> совпадает с <b>id</b> в <b>teachers</b>. Выведите название класса и имя учителя.",
+                expectedRows: 6, expectedCols: 2
+            },
+            {
+                title: "Оценки с именами учеников",
+                theory: "Свяжите <b>grades</b> и <b>students</b> через <b>JOIN ... ON</b> по <b>student_id</b>. Выведите имя ученика, предмет и балл (колонка <b>score</b>).",
+                expectedRows: 20, expectedCols: 3
+            },
+            {
+                title: "Средний балл каждого ученика",
+                theory: "Соедините <b>students</b> и <b>grades</b> через <b>LEFT JOIN ... ON</b> (условие: <b>students.id</b> = <b>grades.student_id</b>). Сгруппируйте результат командой <b>GROUP BY</b> по имени ученика и посчитайте средний балл функцией <b>AVG(grades.score)</b>. Учеников 15 — строк ожидается 15.",
+                expectedRows: 15, expectedCols: 2
+            },
+            {
+                title: "Отличники (средний балл выше 4.5)",
+                theory: "Используйте <b>GROUP BY</b> и <b>AVG()</b>, но добавьте <b>HAVING AVG(grades.score) &gt; 4.5</b>. Отличие <b>HAVING</b> от <b>WHERE</b>: <b>WHERE</b> фильтрует строки до группировки, а <b>HAVING</b> — после, по агрегатным функциям. Строгое <code>&gt;</code> означает, что среднее ровно 4.5 не подходит. Ожидается 6 отличников.",
+                expectedRows: 6, expectedCols: 2
+            },
+            {
+                title: "Ученики без оценок",
+                theory: "Для поиска «сирот» используйте <b>LEFT JOIN ... ON</b> между <b>students</b> и <b>grades</b> (условие: <b>students.id</b> = <b>grades.student_id</b>) и условие <b>WHERE grades.id IS NULL</b> — останутся только те ученики, для которых в таблице <b>grades</b> нет ни одной оценки. Выведите только имя. Ожидается 2 ученика без оценок.",
+                expectedRows: 2, expectedCols: 1
+            }
+        ];
+
+        let pyodide = null;
+        let currentTaskIndex = 0;
+        let connected = false;
+        let dbCreated = false;
+        let solvedTasks = new Set();
+
+        const taskListEl = document.getElementById('taskListContainer');
+        const taskTitleEl = document.getElementById('taskTitle');
+        const taskNumberLabel = document.getElementById('taskNumberLabel');
+        const theoryTextEl = document.getElementById('theoryText');
+        const codeInput = document.getElementById('codeInput');
+        const lineNumbersEl = document.getElementById('lineNumbers');
+        const connectBtn = document.getElementById('connectBtn');
+        const runBtn = document.getElementById('runBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const resultOutput = document.getElementById('resultOutput');
+        const progressDisplay = document.getElementById('progressDisplay');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const pyStatus = document.getElementById('pyStatus');
+
+        // ---------- НУМЕРАЦИЯ СТРОК ----------
+        function updateLineNumbers() {
+            const text = codeInput.value;
+            const lineCount = Math.max(1, text.split('\n').length);
+            let nums = '';
+            for (let i = 1; i <= lineCount; i++) {
+                nums += i + '\n';
+            }
+            lineNumbersEl.textContent = nums.trimEnd();
+            // синхронизируем прокрутку
+            lineNumbersEl.scrollTop = codeInput.scrollTop;
+        }
+        codeInput.addEventListener('input', updateLineNumbers);
+        codeInput.addEventListener('scroll', () => {
+            lineNumbersEl.scrollTop = codeInput.scrollTop;
+        });
+
+        // ---------- TAB = 4 ПРОБЕЛА ----------
+        codeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeInput.selectionStart;
+                const end = codeInput.selectionEnd;
+                const value = codeInput.value;
+
+                if (e.shiftKey) {
+                    // Shift+Tab — убрать 4 пробела слева у текущей строки (или у выделенных строк)
+                    const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+                    const beforeLine = value.slice(0, lineStart);
+                    const afterLine = value.slice(lineStart);
+                    // убираем до 4 пробелов в начале
+                    const trimmed = afterLine.replace(/^ {1,4}/, '');
+                    const removed = afterLine.length - trimmed.length;
+                    codeInput.value = beforeLine + trimmed;
+                    const newPos = Math.max(lineStart, start - removed);
+                    codeInput.selectionStart = codeInput.selectionEnd = newPos;
+                } else {
+                    // Tab — вставить 4 пробела
+                    codeInput.value = value.slice(0, start) + '    ' + value.slice(end);
+                    codeInput.selectionStart = codeInput.selectionEnd = start + 4;
+                }
+                updateLineNumbers();
+            }
+        });
+
+        async function initPyodide() {
+            try {
+                pyStatus.textContent = 'Загрузка Python...';
+                pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/" });
+                pyStatus.textContent = 'Загрузка sqlite3...';
+                try { await pyodide.loadPackage('sqlite3'); }
+                catch (pkgErr) {
+                    await pyodide.loadPackage('micropip');
+                    const micropip = pyodide.pyimport('micropip');
+                    await micropip.install('sqlite3');
+                }
+                await pyodide.runPythonAsync('import sqlite3; print("sqlite3 OK")');
+                pyStatus.textContent = '✅ Python готов';
+                pyStatus.classList.add('ready');
+                connectBtn.disabled = false;
+                resultOutput.textContent = 'Python загружен. Нажмите "Подключиться к БД".';
+                resultOutput.classList.remove('error', 'loading');
+            } catch (e) {
+                console.error(e);
+                pyStatus.textContent = '❌ Ошибка Python';
+                resultOutput.textContent = 'Не удалось загрузить Python: ' + (e.message || e);
+                resultOutput.classList.add('error');
+            }
+        }
+
+        async function createDatabase() {
+            if (!pyodide) return;
+            if (dbCreated) { connected = true; return; }
+
+            resultOutput.textContent = '⏳ Создание базы данных...';
+            resultOutput.classList.remove('error', 'success');
+            resultOutput.classList.add('loading');
+
+            const setupCode = `
+import sqlite3, os
+if os.path.exists('db.sqlite'):
+    os.remove('db.sqlite')
+conn = sqlite3.connect('db.sqlite')
+cur = conn.cursor()
+
+cur.execute('''CREATE TABLE teachers (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL
+)''')
+
+cur.execute('''CREATE TABLE classes (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    teacher_id INTEGER,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(id)
+)''')
+
+cur.execute('''CREATE TABLE students (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    class_id INTEGER,
+    age INTEGER,
+    FOREIGN KEY (class_id) REFERENCES classes(id)
+)''')
+
+cur.execute('''CREATE TABLE grades (
+    id INTEGER PRIMARY KEY,
+    student_id INTEGER,
+    subject TEXT NOT NULL,
+    score INTEGER,
+    date TEXT,
+    FOREIGN KEY (student_id) REFERENCES students(id)
+)''')
+
+teachers = [
+    (1, 'Ирина Петрова', 'Математика'),
+    (2, 'Андрей Смирнов', 'Русский язык'),
+    (3, 'Ольга Кузнецова', 'История'),
+    (4, 'Дмитрий Волков', 'Физика'),
+    (5, 'Елена Соколова', 'Английский язык')
+]
+cur.executemany('INSERT INTO teachers VALUES (?, ?, ?)', teachers)
+
+classes = [
+    (1, '6А', 1),
+    (2, '6Б', 2),
+    (3, '7А', 3),
+    (4, '7Б', 4),
+    (5, '8А', 5),
+    (6, '8Б', 1)
+]
+cur.executemany('INSERT INTO classes VALUES (?, ?, ?)', classes)
+
+students = [
+    (1,  'Анна Иванова',     1, 12),
+    (2,  'Борис Петров',     1, 12),
+    (3,  'Вика Смирнова',    1, 12),
+    (4,  'Глеб Кузнецов',    2, 12),
+    (5,  'Дарья Соколова',   2, 13),
+    (6,  'Егор Волков',      2, 12),
+    (7,  'Женя Морозова',    3, 13),
+    (8,  'Захар Лебедев',    3, 13),
+    (9,  'Ира Новикова',     3, 13),
+    (10, 'Кирилл Орлов',     3, 14),
+    (11, 'Лиза Зайцева',     4, 13),
+    (12, 'Максим Крылов',    4, 13),
+    (13, 'Нина Титова',      5, 14),
+    (14, 'Олег Белов',       5, 14),
+    (15, 'Полина Фомина',    6, 14)
+]
+cur.executemany('INSERT INTO students VALUES (?, ?, ?, ?)', students)
+
+grades = [
+    (1,  1, 'Математика', 5, '2024-09-15'),
+    (2,  1, 'Русский язык', 4, '2024-09-20'),
+    (3,  2, 'Математика', 5, '2024-09-15'),
+    (4,  2, 'История', 5, '2024-09-18'),
+    (5,  3, 'Математика', 4, '2024-09-15'),
+    (6,  4, 'Русский язык', 5, '2024-09-20'),
+    (7,  4, 'Физика', 5, '2024-09-22'),
+    (8,  5, 'Русский язык', 4, '2024-09-20'),
+    (9,  6, 'Математика', 3, '2024-09-15'),
+    (10, 6, 'История', 4, '2024-09-18'),
+    (11, 7, 'История', 5, '2024-09-18'),
+    (12, 7, 'Английский язык', 5, '2024-09-25'),
+    (13, 8, 'История', 4, '2024-09-18'),
+    (14, 8, 'Математика', 5, '2024-09-15'),
+    (15, 9, 'История', 5, '2024-09-18'),
+    (16, 10, 'История', 3, '2024-09-18'),
+    (17, 11, 'Физика', 5, '2024-09-22'),
+    (18, 11, 'Математика', 5, '2024-09-15'),
+    (19, 12, 'Физика', 4, '2024-09-22'),
+    (20, 13, 'Английский язык', 5, '2024-09-25')
+]
+cur.executemany('INSERT INTO grades VALUES (?, ?, ?, ?, ?)', grades)
+
+conn.commit()
+conn.close()
+print("OK")
+`;
+            try {
+                await pyodide.runPythonAsync(setupCode);
+                dbCreated = true;
+                connected = true;
+                connectBtn.textContent = '✅ База подключена';
+                connectBtn.classList.add('connected');
+                connectBtn.disabled = true;
+                codeInput.disabled = false;
+                runBtn.disabled = false;
+                resultOutput.textContent = '✅ База данных создана. Напишите Python-код.';
+                resultOutput.classList.remove('loading', 'error');
+                resultOutput.classList.add('success');
+                codeInput.focus();
+            } catch (e) {
+                console.error(e);
+                resultOutput.textContent = '❌ Ошибка создания БД: ' + (e.message || e);
+                resultOutput.classList.remove('loading', 'success');
+                resultOutput.classList.add('error');
+            }
+        }
+
+        async function runAndCheck() {
+            if (!pyodide || !connected) return;
+            const code = codeInput.value.trim();
+            if (!code) {
+                resultOutput.textContent = 'Введите Python-код.';
+                resultOutput.classList.add('error');
+                return;
+            }
+
+            resultOutput.textContent = '⏳ Выполнение...';
+            resultOutput.classList.remove('error', 'success');
+            resultOutput.classList.add('loading');
+            runBtn.disabled = true;
+            runBtn.textContent = '⏳...';
+
+            try {
+                const wrapper = `
+import sys, io, traceback
+
+def _run_user_code(user_code):
+    _capture = io.StringIO()
+    _old_stdout = sys.stdout
+    sys.stdout = _capture
+    try:
+        exec(user_code, {'__name__': '__main__'})
+    except Exception:
+        sys.stdout = _old_stdout
+        return "__ERROR__\\n" + traceback.format_exc()
+    finally:
+        sys.stdout = _old_stdout
+    return _capture.getvalue()
+`;
+                await pyodide.runPythonAsync(wrapper);
+
+                const runUserCode = pyodide.globals.get('_run_user_code');
+                let displayOutput;
+                try {
+                    displayOutput = String(runUserCode(code));
+                } finally {
+                    runUserCode.destroy?.();
+                }
+
+                if (displayOutput.startsWith('__ERROR__\n')) {
+                    const errPart = displayOutput.slice('__ERROR__\n'.length);
+                    resultOutput.textContent = '❌ Ошибка Python:\n' + errPart;
+                    resultOutput.classList.remove('loading', 'success');
+                    resultOutput.classList.add('error');
+                    return;
+                }
+
+                if (!displayOutput.trim()) {
+                    displayOutput = '(код выполнен, но print() ничего не вывел)';
+                }
+
+                const lines = displayOutput
+                    .split('\n')
+                    .map(l => l.replace(/\r/g, '').trimEnd())
+                    .filter(l => l.trim().length > 0);
+
+                resultOutput.textContent = lines.join('\n');
+                resultOutput.classList.remove('loading', 'error');
+                resultOutput.classList.add('success');
+
+                const task = TASKS[currentTaskIndex];
+                const expectedRows = task.expectedRows;
+                const expectedCols = task.expectedCols;
+
+                const validLines = [];
+                for (const line of lines) {
+                    if (/^[\(\[]/.test(line)) continue;
+                    const cleaned = line.replace(/^[\[\]]+|[\[\]]+$/g, '').trim();
+                    if (!cleaned) continue;
+                    const fields = cleaned.split(/\s*\|\s*|\s+/).filter(f => f.length > 0);
+                    if (fields.length >= expectedCols) {
+                        validLines.push(cleaned);
+                    }
+                }
+
+                let verdict;
+                if (validLines.length >= expectedRows) {
+                    markAsSolved();
+                    verdict = `🎉 Отлично! Решение верное.\n` +
+                              `Строк в правильном формате: ${validLines.length} (нужно минимум ${expectedRows}).`;
+                } else if (validLines.length > 0) {
+                    verdict = `⚠️ Почти получилось!\n` +
+                              `Строк в правильном формате: ${validLines.length} из ${expectedRows}.\n\n` +
+                              `Подсказка: выведите каждую запись на отдельной строке:\n` +
+                              `  for row in cur.fetchall():\n` +
+                              `      print(row[0], row[1], ...)`;
+                } else {
+                    verdict = `❌ Не удалось распознать вывод.\n\n` +
+                              `Проверьте, что вы выводите строки через print()\n` +
+                              `и разделяете значения пробелом. Не используйте print(row).`;
+                }
+
+                resultOutput.textContent = lines.join('\n') +
+                    '\n\n' + '─'.repeat(40) + '\n' + verdict;
+                resultOutput.classList.remove('loading', 'error');
+                resultOutput.classList.add(validLines.length >= expectedRows ? 'success' : 'error');
+
+            } catch (err) {
+                console.error(err);
+                resultOutput.textContent = '❌ Ошибка: ' + (err.message || String(err));
+                resultOutput.classList.remove('loading', 'success');
+                resultOutput.classList.add('error');
+            } finally {
+                runBtn.disabled = false;
+                runBtn.textContent = '▶ Запустить и проверить';
+            }
+        }
+
+        function markAsSolved() {
+            if (!solvedTasks.has(currentTaskIndex)) {
+                solvedTasks.add(currentTaskIndex);
+                updateScore();
+                renderTaskList();
+            }
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = `Решено: ${solvedTasks.size}/${TASKS.length}`;
+        }
+
+        function setTask(index) {
+            if (index < 0 || index >= TASKS.length) return;
+            currentTaskIndex = index;
+            const task = TASKS[index];
+            taskTitleEl.textContent = task.title;
+            taskNumberLabel.textContent = `№${index + 1}`;
+            theoryTextEl.innerHTML = `<strong>🔍 Теория:</strong> ${task.theory}`;
+            progressDisplay.textContent = `Задача ${index + 1} из ${TASKS.length}`;
+            codeInput.value = '';
+            updateLineNumbers();
+            resultOutput.textContent = connected
+                ? '-- Результат выполнения Python-кода появится здесь'
+                : '-- Сначала подключитесь к базе данных';
+            resultOutput.classList.remove('error', 'success', 'loading');
+            document.querySelectorAll('.task-item').forEach((el, i) => {
+                if (i === index) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            if (connected) codeInput.focus();
+        }
+
+        function renderTaskList() {
+            taskListEl.innerHTML = '';
+            TASKS.forEach((task, i) => {
+                const div = document.createElement('div');
+                const solved = solvedTasks.has(i);
+                div.className = 'task-item' + (i === currentTaskIndex ? ' active' : '') + (solved ? ' solved' : '');
+                const statusIcon = solved ? '✅' : (i === currentTaskIndex ? '▶' : '');
+                div.innerHTML = `<span>${i + 1}. ${task.title}</span><span class="task-status ${solved ? 'solved' : ''}">${statusIcon}</span>`;
+                div.addEventListener('click', () => setTask(i));
+                taskListEl.appendChild(div);
+            });
+        }
+
+        function clearInput() {
+            codeInput.value = '';
+            updateLineNumbers();
+            resultOutput.textContent = '-- Результат выполнения Python-кода появится здесь';
+            resultOutput.classList.remove('error', 'success', 'loading');
+            codeInput.focus();
+        }
+
+        async function startApp() {
+            renderTaskList();
+            setTask(0);
+            updateScore();
+            updateLineNumbers();
+            connectBtn.addEventListener('click', createDatabase);
+            runBtn.addEventListener('click', runAndCheck);
+            clearBtn.addEventListener('click', clearInput);
+            codeInput.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (connected) runAndCheck();
+                }
+            });
+            await initPyodide();
+        }
+
+        window.addEventListener('load', startApp);
+    })();
+</script>
+</body>
+</html>
